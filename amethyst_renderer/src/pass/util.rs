@@ -50,6 +50,12 @@ pub(crate) struct TextureOffsetPod {
     v_offset: vec2,
 }
 
+#[repr(C, align(16))]
+#[derive(Clone, Copy, Debug, Uniform)]
+pub(crate) struct Locals {
+    mul_color : vec4,
+}
+
 impl TextureOffsetPod {
     pub(crate) fn from_offset(offset: &TextureOffset) -> Self {
         TextureOffsetPod {
@@ -383,6 +389,14 @@ pub(crate) fn draw_sprite(
             v_offset: [tex_coords.bottom, tex_coords.top].into(),
         }.std140(),
         encoder,
+    );
+
+    effect.update_constant_buffer(
+        "Locals",
+        &Locals {
+            mul_color : sprite_render.mul_color.into()
+        }.std140(),
+        encoder
     );
 
     effect.draw(

@@ -112,6 +112,8 @@ pub struct SpriteRender {
     pub flip_horizontal: bool,
     /// Whether the sprite should be flipped vertically
     pub flip_vertical: bool,
+    /// Color multiplicator
+    pub mul_color: [f32;4],
 }
 
 impl Component for SpriteRender {

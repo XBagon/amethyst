@@ -10,7 +10,7 @@ use super::*;
 use cam::{ActiveCamera, Camera};
 use error::Result;
 use mtl::MaterialTextureSet;
-use pass::util::{draw_sprite, get_camera, setup_textures, SpriteArgs, VertexArgs};
+use pass::util::{draw_sprite, get_camera, setup_textures, SpriteArgs, VertexArgs, Locals};
 use pipe::pass::{Pass, PassData};
 use pipe::{DepthMode, Effect, NewEffect};
 use sprite::{SpriteRender, SpriteSheet};
@@ -72,6 +72,10 @@ impl Pass for DrawSprite {
             .with_raw_constant_buffer(
                 "SpriteArgs",
                 mem::size_of::<<SpriteArgs as Uniform>::Std140>(),
+                1,
+            ).with_raw_constant_buffer(
+                "Locals",
+                mem::size_of::<<Locals as Uniform>::Std140>(),
                 1,
             );
         setup_textures(&mut builder, &TEXTURES);
