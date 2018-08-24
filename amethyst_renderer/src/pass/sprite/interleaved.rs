@@ -19,12 +19,61 @@ use tex::Texture;
 use types::{Encoder, Factory};
 use EffectBuilder;
 
+use std::fmt;
+
 /// Draws sprites on a 2D quad.
 #[derive(Derivative, Clone, Debug, PartialEq)]
 #[derivative(Default(bound = "Self: Pass"))]
-pub struct DrawSprite<'c> {
+pub struct DrawSprite<'a> {
     transparency: Option<(ColorMask, Blend, Option<DepthMode>)>,
-    custom_shader: Option<(EffectBuilder<'c>, &'c Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>))>
+    custom_shader: Option<CustomShader<'a>>
+}
+
+#[derive(Clone)]
+struct CustomShader<'a>{
+    builder: LazyEffectBuilder<'a>,
+    handler: &'a Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>)
+}
+
+impl<'a> fmt::Debug for CustomShader<'a>{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CustomShader")
+    }
+}
+
+impl<'a> PartialEq for CustomShader <'a>{
+    fn eq(&self, other: &CustomShader) -> bool {
+        self.builder == other.builder
+    }
+}
+
+#[derive(Clone)]
+struct LazyEffectBuilder<'a>{
+    vert : &'a [u8],
+    frag : &'a [u8],
+    setup : &'a Fn(&mut EffectBuilder)
+}
+
+impl<'a> LazyEffectBuilder<'a>{
+    fn new(vert : &'a [u8], frag : &'a [u8], setup : &'a Fn(&mut EffectBuilder)) -> Self {
+        LazyEffectBuilder{
+            vert,
+            frag,
+            setup,
+        }
+    }
+}
+
+impl<'a> fmt::Debug for LazyEffectBuilder<'a>{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LazyEffectBuilder")
+    }
+}
+
+impl<'a> PartialEq for LazyEffectBuilder<'a> {
+    fn eq(&self, other: &LazyEffectBuilder) -> bool {
+        self.frag == other.frag && self.vert == other.vert
+    }
 }
 
 impl<'c> DrawSprite<'c>
@@ -49,11 +98,11 @@ where
 
     pub fn with_custom_shader(
         mut self,
-        builder: EffectBuilder,
+        builder: LazyEffectBuilder,
         handler: impl Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>)
     ) -> Self
     {
-        self.custom_shader = Some((builder, &handler));
+        self.custom_shader = Some(CustomShader { builder, handler : &handler });
         self
     }
 }
@@ -74,8 +123,10 @@ impl<'a,'c> PassData<'a> for DrawSprite<'c>{
 impl<'c> Pass for DrawSprite<'c> {
     fn compile(&mut self, effect: NewEffect) -> Result<Effect> {
         use std::mem;
-        let mut builder = if let Some((builder,handler)) = self.custom_shader{
-           builder
+        let mut builder = if let Some(shader) = self.custom_shader{
+            let mut builder = effect.simple(shader.builder.vert, shader.builder.frag);
+            (shader.builder.setup)(&mut builder);
+            builder
         }else {
             let mut builder = effect.simple(VERT_SRC, FRAG_SRC);
             builder
@@ -116,7 +167,11 @@ impl<'c> Pass for DrawSprite<'c> {
         ): <Self as PassData<'a>>::Data,
     ) {
         let camera = get_camera(active, &camera, &global);
-        let effect_handler = self.custom_shader.unwrap_or(||{});
+        let effect_handler = if let Some(shader) = self.custom_shader{
+            shader.handler
+        }else{
+            &|_,_,_,_,_,_,_,_|{}
+        };
         match visibility {
             None => for (sprite_render, global) in (&sprite_render, &global).join() {
                 draw_sprite(
