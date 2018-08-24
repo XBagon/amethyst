@@ -13,5 +13,5 @@ in vec2 tex_uv;
 out vec4 color;
 
 void main() {
-    color = texture(albedo, tex_uv);
+    color = texture(albedo, tex_uv) * mul_color;
 }
