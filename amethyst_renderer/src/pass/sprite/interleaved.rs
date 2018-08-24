@@ -17,15 +17,17 @@ use sprite::{SpriteRender, SpriteSheet};
 use sprite_visibility::SpriteVisibility;
 use tex::Texture;
 use types::{Encoder, Factory};
+use EffectBuilder;
 
 /// Draws sprites on a 2D quad.
 #[derive(Derivative, Clone, Debug, PartialEq)]
 #[derivative(Default(bound = "Self: Pass"))]
-pub struct DrawSprite {
+pub struct DrawSprite<'c> {
     transparency: Option<(ColorMask, Blend, Option<DepthMode>)>,
+    custom_shader: Option<(EffectBuilder<'c>, &'c Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>))>
 }
 
-impl DrawSprite
+impl<'c> DrawSprite<'c>
 where
     Self: Pass,
 {
@@ -44,9 +46,19 @@ where
         self.transparency = Some((mask, blend, depth));
         self
     }
+
+    pub fn with_custom_shader(
+        mut self,
+        builder: EffectBuilder,
+        handler: impl Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>)
+    ) -> Self
+    {
+        self.custom_shader = Some((builder, &handler));
+        self
+    }
 }
 
-impl<'a> PassData<'a> for DrawSprite {
+impl<'a,'c> PassData<'a> for DrawSprite<'c>{
     type Data = (
         Option<Read<'a, ActiveCamera>>,
         ReadStorage<'a, Camera>,
@@ -59,21 +71,26 @@ impl<'a> PassData<'a> for DrawSprite {
     );
 }
 
-impl Pass for DrawSprite {
+impl<'c> Pass for DrawSprite<'c> {
     fn compile(&mut self, effect: NewEffect) -> Result<Effect> {
         use std::mem;
-        let mut builder = effect.simple(VERT_SRC, FRAG_SRC);
-        builder
-            .with_raw_constant_buffer(
-                "VertexArgs",
-                mem::size_of::<<VertexArgs as Uniform>::Std140>(),
-                1,
-            )
-            .with_raw_constant_buffer(
-                "SpriteArgs",
-                mem::size_of::<<SpriteArgs as Uniform>::Std140>(),
-                1,
-            );
+        let mut builder = if let Some((builder,handler)) = self.custom_shader{
+           builder
+        }else {
+            let mut builder = effect.simple(VERT_SRC, FRAG_SRC);
+            builder
+                .with_raw_constant_buffer(
+                    "VertexArgs",
+                    mem::size_of::<<VertexArgs as Uniform>::Std140>(),
+                    1,
+                )
+                .with_raw_constant_buffer(
+                    "SpriteArgs",
+                    mem::size_of::<<SpriteArgs as Uniform>::Std140>(),
+                    1,
+                );
+            builder
+        };
         setup_textures(&mut builder, &TEXTURES);
         match self.transparency {
             Some((mask, blend, depth)) => builder.with_blended_output("color", mask, blend, depth),
@@ -99,7 +116,7 @@ impl Pass for DrawSprite {
         ): <Self as PassData<'a>>::Data,
     ) {
         let camera = get_camera(active, &camera, &global);
-
+        let effect_handler = self.custom_shader.unwrap_or(||{});
         match visibility {
             None => for (sprite_render, global) in (&sprite_render, &global).join() {
                 draw_sprite(
@@ -111,6 +128,7 @@ impl Pass for DrawSprite {
                     &material_texture_set,
                     camera,
                     Some(global),
+                    effect_handler
                 );
             },
             Some(ref visibility) => {
@@ -126,6 +144,7 @@ impl Pass for DrawSprite {
                         &material_texture_set,
                         camera,
                         Some(global),
+                        effect_handler
                     );
                 }
 
@@ -140,6 +159,7 @@ impl Pass for DrawSprite {
                             &material_texture_set,
                             camera,
                             global.get(*entity),
+                            effect_handler
                         );
                     }
                 }

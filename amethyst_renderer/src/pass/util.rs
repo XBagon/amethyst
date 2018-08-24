@@ -16,6 +16,8 @@ use tex::Texture;
 use types::{Encoder, Slice};
 use vertex::Attributes;
 
+//pub type EffectHandler = Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>);
+
 pub(crate) enum TextureType {
     Albedo,
     Emission,
@@ -333,6 +335,7 @@ pub(crate) fn draw_sprite(
     material_texture_set: &MaterialTextureSet,
     camera: Option<(&Camera, &GlobalTransform)>,
     global: Option<&GlobalTransform>,
+    effect_handler: impl Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>)
 ) {
     if global.is_none() {
         return;
@@ -384,6 +387,8 @@ pub(crate) fn draw_sprite(
         }.std140(),
         encoder,
     );
+
+    effect_handler(encoder, effect, sprite_render, sprite_sheet_storage, tex_storage, material_texture_set, camera, global);
 
     effect.draw(
         &Slice {
