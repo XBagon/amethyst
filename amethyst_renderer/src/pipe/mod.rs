@@ -23,9 +23,13 @@ pub use self::pipe::{
 pub use self::stage::{PolyStage, Stage, StageBuilder};
 pub use self::target::{ColorBuffer, DepthBuffer, Target, TargetBuilder, Targets};
 
+pub use self::custom_shader::CustomShader;
+
+
 pub mod pass;
 
 mod effect;
 mod pipe;
 mod stage;
 mod target;
+mod custom_shader;
