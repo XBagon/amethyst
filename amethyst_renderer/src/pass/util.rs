@@ -276,7 +276,7 @@ pub(crate) fn set_sprite_args(
     effect.update_constant_buffer("SpriteArgs", &geometry_args.std140(), encoder);
 }
 
-pub(crate) fn draw_mesh(
+pub(crate) fn  draw_mesh(
     encoder: &mut Encoder,
     effect: &mut Effect,
     skinning: bool,
@@ -335,7 +335,6 @@ pub(crate) fn draw_sprite(
     material_texture_set: &MaterialTextureSet,
     camera: Option<(&Camera, &GlobalTransform)>,
     global: Option<&GlobalTransform>,
-    effect_handler: impl Fn(&mut Encoder, &mut Effect, &SpriteRender, &AssetStorage<SpriteSheet>, &AssetStorage<Texture>, &MaterialTextureSet, Option<(&Camera, &GlobalTransform)>, Option<&GlobalTransform>)
 ) {
     if global.is_none() {
         return;
@@ -387,8 +386,6 @@ pub(crate) fn draw_sprite(
         }.std140(),
         encoder,
     );
-
-    effect_handler(encoder, effect, sprite_render, sprite_sheet_storage, tex_storage, material_texture_set, camera, global);
 
     effect.draw(
         &Slice {

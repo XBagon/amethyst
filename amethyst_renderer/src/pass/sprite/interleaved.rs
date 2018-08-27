@@ -21,12 +21,12 @@ use types::{Encoder, Factory};
 /// Draws sprites on a 2D quad.
 #[derive(Derivative, Clone, Debug, PartialEq)]
 #[derivative(Default(bound = "Self: Pass"))]
-pub struct DrawSprite<'a> {
+pub struct DrawSprite<T> {
     transparency: Option<(ColorMask, Blend, Option<DepthMode>)>,
-    custom_shader: Option<&'a CustomShader<'a, <DrawSprite<'a> as PassData<'a>>::Data>>,
+    custom_shader: Option<T>,
 }
 
-impl<'a> DrawSprite<'a>
+impl<'a, T> DrawSprite<T>
 where
     Self: Pass,
 {
@@ -48,14 +48,14 @@ where
 
     pub fn with_custom_shader(
         mut self,
-        custom_shader : impl CustomShader<'a, <DrawSprite<'a> as PassData<'a>>::Data>
+        custom_shader : T
     ) -> Self {
-        self.custom_shader = Some(&custom_shader);
+        self.custom_shader = Some(custom_shader);
         self
     }
 }
 
-impl<'a> PassData<'a> for DrawSprite<'a> {
+impl<'a, T> PassData<'a> for DrawSprite<T> {
     type Data = (
         Option<Read<'a, ActiveCamera>>,
         ReadStorage<'a, Camera>,
@@ -68,7 +68,7 @@ impl<'a> PassData<'a> for DrawSprite<'a> {
     );
 }
 
-impl<'a> Pass for DrawSprite<'a> {
+impl<'c, T> Pass for DrawSprite<T> where T: CustomShader<'c, DrawSprite<T>> {
     fn compile(&mut self, effect: NewEffect) -> Result<Effect> {
         use std::mem;
         let mut builder = effect.simple(VERT_SRC, FRAG_SRC);
@@ -91,7 +91,7 @@ impl<'a> Pass for DrawSprite<'a> {
         builder.build()
     }
 
-    fn apply<'b: 'a>(
+    fn apply<'a, 'b: 'a>(
         &'a mut self,
         encoder: &mut Encoder,
         effect: &mut Effect,

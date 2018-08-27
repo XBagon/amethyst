@@ -32,12 +32,13 @@ use visibility::Visibility;
 /// * `V`: `VertexFormat`
 #[derive(Derivative, Clone, Debug, PartialEq)]
 #[derivative(Default(bound = "V: Query<(Position, Normal, TexCoord)>"))]
-pub struct DrawShaded<V> {
+pub struct DrawShaded<V, T> {
     _pd: PhantomData<V>,
     transparency: Option<(ColorMask, Blend, Option<DepthMode>)>,
+    custom_shader: Option<T>,
 }
 
-impl<V> DrawShaded<V>
+impl<V, T> DrawShaded<V, T>
 where
     V: Query<(Position, Normal, TexCoord)>,
 {
@@ -56,9 +57,17 @@ where
         self.transparency = Some((mask, blend, depth));
         self
     }
+
+    pub fn with_custom_shader(
+        mut self,
+        custom_shader : T
+    ) -> Self {
+        self.custom_shader = Some(custom_shader);
+        self
+    }
 }
 
-impl<'a, V> PassData<'a> for DrawShaded<V>
+impl<'a, V, T> PassData<'a> for DrawShaded<V, T>
 where
     V: Query<(Position, Normal, TexCoord)>,
 {
@@ -77,16 +86,22 @@ where
     );
 }
 
-impl<V> Pass for DrawShaded<V>
+impl<V, T> Pass for DrawShaded<V, T>
 where
     V: Query<(Position, Normal, TexCoord)>,
 {
     fn compile(&mut self, effect: NewEffect) -> Result<Effect> {
-        let mut builder = effect.simple(VERT_SRC, FRAG_SRC);
-        builder.with_raw_vertex_buffer(V::QUERIED_ATTRIBUTES, V::size() as ElemStride, 0);
-        setup_vertex_args(&mut builder);
-        setup_light_buffers(&mut builder);
-        setup_textures(&mut builder, &TEXTURES);
+        let mut builder;
+        if let Some(shader) = self.custom_shader{
+            builder = shader.build(effect);
+        }else {
+            builder = effect.simple(VERT_SRC, FRAG_SRC);
+            builder.with_raw_vertex_buffer(V::QUERIED_ATTRIBUTES, V::size() as ElemStride, 0);
+            setup_vertex_args(&mut builder);
+            setup_light_buffers(&mut builder);
+            setup_textures(&mut builder, &TEXTURES);
+        }
+
         match self.transparency {
             Some((mask, blend, depth)) => builder.with_blended_output("color", mask, blend, depth),
             None => builder.with_output("color", Some(DepthMode::LessEqualWrite)),
